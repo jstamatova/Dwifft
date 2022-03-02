@@ -54,6 +54,7 @@ public final class CollectionViewDiffCalculator<Section: Equatable, Value: Equat
     /// The collection view to be managed.
     public weak var collectionView: UICollectionView?
 
+    public var forceReload: Bool = false
     /// Initializes a new diff calculator.
     ///
     /// - Parameters:
@@ -66,17 +67,25 @@ public final class CollectionViewDiffCalculator<Section: Equatable, Value: Equat
 
     override internal func processChanges(newState: SectionedValues<Section, Value>, diff: [SectionedDiffStep<Section, Value>]) {
         guard let collectionView = self.collectionView else { return }
-        collectionView.performBatchUpdates({
+        // iOS 15+ crashes when performBatchUpdates is called here
+        // so as a temporary workaround, we're reloading the data here
+        // until a proper solution is found
+        if forceReload {
             self._sectionedValues = newState
-            for result in diff {
-                switch result {
-                case let .delete(section, row, _): collectionView.deleteItems(at: [IndexPath(row: row, section: section)])
-                case let .insert(section, row, _): collectionView.insertItems(at: [IndexPath(row: row, section: section)])
-                case let .sectionDelete(section, _): collectionView.deleteSections(IndexSet(integer: section))
-                case let .sectionInsert(section, _): collectionView.insertSections(IndexSet(integer: section))
+            collectionView.reloadData()
+        } else {
+            collectionView.performBatchUpdates({
+                self._sectionedValues = newState
+                for result in diff {
+                    switch result {
+                    case let .delete(section, row, _): collectionView.deleteItems(at: [IndexPath(row: row, section: section)])
+                    case let .insert(section, row, _): collectionView.insertItems(at: [IndexPath(row: row, section: section)])
+                    case let .sectionDelete(section, _): collectionView.deleteSections(IndexSet(integer: section))
+                    case let .sectionInsert(section, _): collectionView.insertSections(IndexSet(integer: section))
+                    }
                 }
-            }
-        }, completion: nil)
+            }, completion: nil)
+        }
     }
 }
 
@@ -142,7 +151,7 @@ public final class SingleSectionTableViewDiffCalculator<Value: Equatable> {
         self.sectionIndex = sectionIndex
     }
 
-    private let internalDiffCalculator: TableViewDiffCalculator<Int, Value>
+    public var internalDiffCalculator: TableViewDiffCalculator<Int, Value>
 
 }
 
@@ -181,7 +190,7 @@ public final class SingleSectionCollectionViewDiffCalculator<Value: Equatable> {
         self.sectionIndex = sectionIndex
     }
 
-    private let internalDiffCalculator: CollectionViewDiffCalculator<Int, Value>
+    public var internalDiffCalculator: CollectionViewDiffCalculator<Int, Value>
     
 }
 
